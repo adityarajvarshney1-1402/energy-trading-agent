@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Secrets / env
+.env
+*.key
+
+# Streamlit
+streamlit.log
+.streamlit/secrets.toml
+
+# Trained model artifacts & generated data (regenerated on first run)
+data/*.pkl
+data/*.pth
+data/historical_prices.csv
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,70 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import os
+
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+
+# EIA v2 open-data API. The hourly RTO series exposes strong daily/weekly
+# seasonality, which is what the Prophet/LSTM pipeline expects. Free API key:
+# https://www.eia.gov/opendata/register.php
+EIA_API_URL = "https://api.eia.gov/v2/electricity/rto/region-data/data/"
+
+def generate_mock_energy_data(start_date: str = "2023-01-01", days: int = 365) -> pd.DataFrame:
+    """
+    Generates mock hourly energy price data for testing the pipeline without an API key.
+    Includes daily seasonality, weekly seasonality, and random noise.
+    """
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    dates = [start + timedelta(hours=i) for i in range(days * 24)]
+    
+    # Base price
+    base_price = 50.0
+    
+    # Trend component (slight upward trend)
+    trend = np.linspace(0, 20, len(dates))
+    
+    # Daily seasonality (higher during day, lower at night)
+    daily_seasonality = np.array([10 * np.sin(2 * np.pi * (d.hour - 6) / 24) for d in dates])
+    
+    # Weekly seasonality (lower on weekends)
+    weekly_seasonality = np.array([-15 if d.weekday() >= 5 else 5 for d in dates])
+    
+    # Random noise
+    noise = np.random.normal(0, 5, len(dates))
+    
+    # Calculate final prices
+    prices = base_price + trend + daily_seasonality + weekly_seasonality + noise
+    
+    # Create DataFrame
+    df = pd.DataFrame({
+        'timestamp': dates,
+        'price': prices
+    })
+    
+    return df
+
+def fetch_and_save_data(filename: str = "historical_prices.csv"):
+    """
+    Fetches data (mocked) and saves it to the data directory.
+    """
+    os.makedirs(DATA_DIR, exist_ok=True)
+    df = generate_mock_energy_data()
+    filepath = os.path.join(DATA_DIR, filename)
+    df.to_csv(filepath, index=False)
+    return filepath
+
+def load_data(filename: str = "historical_prices.csv") -> pd.DataFrame:
+    """
+    Loads historical data from the data directory.
+    """
+    filepath = os.path.join(DATA_DIR, filename)
+    if not os.path.exists(filepath):
+        filepath = fetch_and_save_data(filename)
+    df = pd.read_csv(filepath)
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    return df
+
+if __name__ == "__main__":
+    fetch_and_save_data()
+    print("Mock data generated successfully.")
