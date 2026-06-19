@@ -87,17 +87,61 @@ def fetch_eia_data(respondent: str = "PJM", hours: int = 24 * 90,
     return df
 
 
+def fetch_yfinance_data(ticker: str = "NG=F", period: str = "90d",
+                        interval: str = "60m") -> pd.DataFrame:
+    """
+    Fetches real market prices from Yahoo Finance via ``yfinance`` and returns a
+    ``timestamp``/``price`` frame (the closing price is used as ``price``).
+
+    No API key required. Useful tickers for energy trading:
+      NG=F  Natural Gas futures      CL=F  WTI Crude Oil futures
+      BZ=F  Brent Crude futures      XLE   Energy Select Sector ETF
+      UNG   Natural Gas ETF          XOM   ExxonMobil stock
+
+    Note: commodity markets close overnight/weekends, so the hourly series has
+    gaps (Prophet handles this fine). Raises on empty response so callers can
+    fall back to mock data.
+    """
+    import yfinance as yf
+
+    data = yf.download(ticker, period=period, interval=interval,
+                       progress=False, auto_adjust=True)
+    if data is None or data.empty:
+        raise ValueError(f"yfinance returned no data for ticker={ticker!r}.")
+
+    close = data["Close"]
+    if isinstance(close, pd.DataFrame):       # MultiIndex columns for some tickers
+        close = close.iloc[:, 0]
+
+    idx = pd.DatetimeIndex(close.index)
+    if idx.tz is not None:
+        idx = idx.tz_localize(None)
+    df = pd.DataFrame({
+        "timestamp": idx,
+        "price": pd.to_numeric(close.values, errors="coerce"),
+    })
+    df = df.dropna().drop_duplicates("timestamp").sort_values("timestamp").reset_index(drop=True)
+    if df.empty:
+        raise ValueError(f"yfinance data for {ticker!r} had no usable price points.")
+    return df
+
+
 def fetch_and_save_data(filename: str = "historical_prices.csv", source: str = "mock",
-                        respondent: str = "PJM"):
+                        respondent: str = "PJM", ticker: str = "NG=F"):
     """
     Fetches data and saves it to the data directory.
 
-    source="mock"  -> synthetic generator (no key needed)
-    source="live"  -> live EIA hourly data (requires EIA_API_KEY)
+    source="mock"     -> synthetic generator (no key needed)
+    source="eia"      -> live EIA hourly data          (requires EIA_API_KEY)
+    source="yfinance" -> real market prices (gas/oil/ETFs) via Yahoo Finance (no key)
+
+    Note: "live" is kept as an alias for "eia" for backward compatibility.
     """
     os.makedirs(DATA_DIR, exist_ok=True)
-    if source == "live":
+    if source in ("eia", "live"):
         df = fetch_eia_data(respondent=respondent)
+    elif source == "yfinance":
+        df = fetch_yfinance_data(ticker=ticker)
     else:
         df = generate_mock_energy_data()
     filepath = os.path.join(DATA_DIR, filename)

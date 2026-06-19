@@ -92,7 +92,16 @@ Set these as environment variables (or in a local `.env` file — gitignored):
 |----------------------|---------------------------------------------------------------|
 | `ANTHROPIC_API_KEY`  | Enables the Claude-powered trading agent (else rule-based)     |
 | `ENERGY_AGENT_MODEL` | Override the Claude model (default `claude-sonnet-4-6`)        |
-| `EIA_API_KEY`        | Enables live energy data ([free key](https://www.eia.gov/opendata/register.php)) |
+| `EIA_API_KEY`        | US hourly energy data ([free key](https://www.eia.gov/opendata/register.php)) |
+
+### Data sources
+
+Pick the source from the dashboard sidebar:
+
+- **Mock (synthetic)** — realistic generated prices; no key needed. *Default.*
+- **Commodities (yfinance)** — real market prices from Yahoo Finance with **no key**:
+  Natural Gas (`NG=F`), WTI/Brent crude (`CL=F`/`BZ=F`), energy ETFs (`XLE`, `UNG`), and stocks.
+- **EIA (US demand)** — hourly US grid demand used as a price proxy. Requires `EIA_API_KEY`.
 
 ---
 

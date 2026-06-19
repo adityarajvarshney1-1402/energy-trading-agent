@@ -211,16 +211,40 @@ with st.sidebar:
     st.divider()
     st.markdown("**Data source**")
     source = st.radio(
-        "Data source", ["Mock (synthetic)", "Live (EIA)"],
+        "Data source",
+        ["Mock (synthetic)", "Commodities (yfinance)", "EIA (US demand)"],
         label_visibility="collapsed",
     )
-    is_live = source.startswith("Live")
-    region = st.text_input("EIA region / RTO", value="PJM") if is_live else "PJM"
+
+    # Source-specific inputs
+    region = "PJM"
+    ticker = "NG=F"
+    TICKERS = {
+        "Natural Gas (NG=F)": "NG=F",
+        "WTI Crude Oil (CL=F)": "CL=F",
+        "Brent Crude (BZ=F)": "BZ=F",
+        "Energy Sector ETF (XLE)": "XLE",
+        "Natural Gas ETF (UNG)": "UNG",
+        "ExxonMobil (XOM)": "XOM",
+    }
+    if source.startswith("Commodities"):
+        label = st.selectbox("Instrument", list(TICKERS), help="Real prices from Yahoo Finance — no key needed.")
+        ticker = TICKERS[label]
+    elif source.startswith("EIA"):
+        region = st.text_input("EIA region / RTO", value="PJM")
+
+    # Map UI label -> pipeline source key
+    source_key = ("yfinance" if source.startswith("Commodities")
+                  else "eia" if source.startswith("EIA")
+                  else "mock")
 
     # Key status indicators
     eia_ok = bool(os.environ.get("EIA_API_KEY"))
     claude_ok = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    st.caption(f"{'🟢' if eia_ok else '⚪'} EIA_API_KEY    {'🟢' if claude_ok else '⚪'} ANTHROPIC_API_KEY")
+    st.caption(
+        f"{'🟢' if eia_ok else '⚪'} EIA_API_KEY  ·  "
+        f"{'🟢' if claude_ok else '⚪'} ANTHROPIC_API_KEY"
+    )
 
     st.divider()
     if "cache_key" not in st.session_state:
@@ -228,12 +252,13 @@ with st.sidebar:
 
     if st.button("🔄 Refresh market data", use_container_width=True):
         try:
-            fetch_and_save_data(source="live" if is_live else "mock", respondent=region)
+            with st.spinner("Fetching market data…"):
+                fetch_and_save_data(source=source_key, respondent=region, ticker=ticker)
             st.session_state.cache_key += 1
             st.cache_data.clear()
-            st.toast(f"Market data refreshed ({'live EIA' if is_live else 'mock'})", icon="✅")
+            st.toast(f"Market data refreshed ({source_key})", icon="✅")
         except Exception as e:
-            st.error(f"Live fetch failed — keeping existing data.\n\n{e}")
+            st.error(f"Fetch failed — keeping existing data.\n\n{e}")
 
     if st.button("🧠 Retrain models", use_container_width=True):
         for f in ("prophet_model.pkl", "lstm_model.pth", "scaler.pkl"):
